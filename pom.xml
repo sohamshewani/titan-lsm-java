@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.titan.lsm</groupId>
+    <artifactId>titan-lsm-java</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+    <packaging>jar</packaging>
+
+    <name>titan-lsm-java</name>
+    <description>Production-grade LSM-tree storage engine in Java with native compilation support.</description>
+
+    <properties>
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        
+        <!-- Benchmark properties -->
+        <jmh.version>1.37</jmh.version>
+        
+        <!-- Native C/C++ Optimization Flags -->
+        <native.compiler.optimization>-O3</native.compiler.optimization>
+        <native.compiler.warning.all>-Wall</native.compiler.warning.all>
+        <native.compiler.warning.extra>-Wextra</native.compiler.warning.extra>
+    </properties>
+
+    <dependencies>
+        <!-- JMH for Benchmarking -->
+        <dependency>
+            <groupId>org.openjdk.jmh</groupId>
+            <artifactId>jmh-core</artifactId>
+            <version>${jmh.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.openjdk.jmh</groupId>
+            <artifactId>jmh-generator-annprocess</artifactId>
+            <version>${jmh.version}</version>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- JUnit 5 for Testing -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>5.10.2</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!-- Compiler Plugin -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.13.0</version>
+                <configuration>
+                    <source>${maven.compiler.source}</source>
+                    <target>${maven.compiler.target}</target>
+                    <compilerArgs>
+                        <arg>-h</arg>
+                        <arg>${project.build.directory}/native/include</arg>
+                    </compilerArgs>
+                </configuration>
+            </plugin>
+
+            <!-- Surefire Plugin for Testing -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.2.5</version>
+            </plugin>
+
+            <!-- Exec Plugin to safely manage targets: all, build, test, clean, benchmark -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>3.2.0</version>
+                <executions>
+                    
+                    <!-- 1. Target: clean (Extended to clean native artifacts safely) -->
+                    <execution>
+                        <id>clean-native</id>
+                        <phase>pre-clean</phase>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <executable>cmake</executable>
+                            <workingDirectory>${project.basedir}/src/main/native</workingDirectory>
+                            <arguments>
+                                <argument>--build</argument>
+                                <argument>build</argument>
+                                <argument>--target</argument>
+                                <argument>clean</argument>
+                            </arguments>
+                            <continueOnError>true</continueOnError>
+                        </configuration>
+                    </execution>
+
+                    <!-- 2. Target: build (Compiles Java + Optional Native with -O3 -Wall -Wextra) -->
+                    <execution>
+                        <id>build-native</id>
+                        <phase>compile</phase>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <executable>cmake</executable>
+                            <workingDirectory>${project.basedir}/src/main/native</workingDirectory>
+                            <arguments>
+                                <argument>-B</argument>
+                                <argument>build</argument>
+                                <argument>-DCMAKE_BUILD_TYPE=Release</argument>
+                                <argument>-DCMAKE_C_FLAGS=${native.compiler.optimization} ${native.compiler.warning.all} ${native.compiler.warning.extra}</argument>
+                                <argument>-DCMAKE_CXX_FLAGS=${native.compiler.optimization} ${native.compiler.warning.all} ${native.compiler.warning.extra}</argument>
+                            </arguments>
+                            <skip>${skipNative}</skip>
+                            <continueOnError>true</continueOnError>
+                        </configuration>
+                    </execution>
+
+                    <execution>
+                        <id>compile-native</id>
+                        <phase>compile</phase>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <executable>cmake</executable>
+                            <workingDirectory>${project.basedir}/src/main/native</workingDirectory>
+                            <arguments>
+                                <argument>--build</argument>
+                                <argument>build</argument>
+                            </arguments>
+                            <skip>${skipNative}</skip>
+                            <continueOnError>true</continueOnError>
+                        </configuration>
+                    </execution>
+
+                    <!-- 3. Target: benchmark (Runs JMH Benchmarks) -->
+                    <execution>
+                        <id>run-benchmarks</id>
+                        <phase>integration-test</phase>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <executable>java</executable>
+                            <arguments>
+                                <argument>-jar</
